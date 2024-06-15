@@ -9,11 +9,9 @@ from .models import User, Category, Course, Curriculum, Syllabus, EvaluationCrit
 from .serializers import UserSerializer, CategorySerializer, CourseSerializer, CurriculumSerializer, SyllabusSerializer, \
     EvaluationCriterionSerializer, CommentSerializer, CurriculumEvaluation, CurriculumEvaluationSerializer
 from courses import serializers, paginators
+from django.contrib.auth.models import Group
+from .permission import IsSuperuser
 
-
-class IsSuperuser(permissions.BasePermission):
-    def has_permission(self, request, view):
-        return request.user and request.user.is_superuser
 class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView, generics.RetrieveAPIView, generics.DestroyAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -73,6 +71,9 @@ class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView
             raise PermissionDenied("Invalid teacher account.")
         user.is_staff = True
         user.is_active = True
+        group_name = 'Teacher'  # Replace with your group name
+        group = Group.objects.get(name=group_name)
+        user.groups.add(group)
         user.save()
         # send_mail(
         #     'Account Approved',
@@ -89,6 +90,9 @@ class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView
             raise PermissionDenied("Invalid student account.")
         user.is_active = True
         user.is_staff = True
+        group_name = 'Student'  # Replace with your group name
+        group = Group.objects.get(name=group_name)
+        user.groups.add(group)
         user.save()
         # send_mail(
         #     'Account Approved',

@@ -8,7 +8,7 @@ from .models import User, Category, Course, Curriculum, Syllabus, EvaluationCrit
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name','email', 'birth_year', 'avatar', 'is_active', 'is_staff', 'is_superuser', 'is_teacher', 'is_student', 'HocVi', 'password']
+        fields = ['id', 'username', 'first_name', 'last_name','email', 'birth_year', 'avatar', 'is_active', 'is_staff', 'is_superuser', 'is_teacher', 'is_student', 'degree', 'password']
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -25,7 +25,7 @@ class UserSerializer(serializers.ModelSerializer):
             is_teacher=validated_data.get('is_teacher', False),
             is_student=validated_data.get('is_student', False),
             email=validated_data.get('email',False),
-            HocVi=validated_data.get('HocVi', None)
+            degree=validated_data.get('degree', None)
         )
         user.set_password(validated_data['password'])
         user.save()
@@ -56,7 +56,17 @@ class SyllabusSerializer(serializers.ModelSerializer):
 class EvaluationCriterionSerializer(serializers.ModelSerializer):
     class Meta:
         model = EvaluationCriterion
-        fields = ['id', 'curriculum', 'name', 'weight', 'max_score', 'created_at', 'updated_at', 'active']
+        fields = ['id', 'course', 'name', 'weight', 'max_score', 'created_at', 'updated_at', 'active']
+    # def validate_criterion_columns(self, value):
+    #     # Ensure at least 2 and at most 5 columns
+    #     if not 2 <= len(value) <= 5:
+    #         raise serializers.ValidationError("You must provide between 2 and 5 criterion columns.")
+    #     total_weight = sum(column['weight'] for column in value)
+    #     if total_weight != 100:
+    #         raise serializers.ValidationError("The total weight of criterion columns must be 100.")
+    #
+    #     return value
+
 
 
 class CurriculumEvaluationSerializer(serializers.ModelSerializer):

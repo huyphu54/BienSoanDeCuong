@@ -1,46 +1,63 @@
 {% extends 'admin/base_site.html' %}
 {% block content %}
 <h1>THỐNG KÊ ĐỀ CƯƠNG MÔN HỌC</h1>
-<h2>Số lượng khoá học: {{ courses_count }}</h2>
+<h2>Số lượng khóa học: {{ courses_count }}</h2>
+
+<h3>Số lượng đề cương và bài học theo từng khóa học</h3>
 <ul>
 {% for c in course_stats %}
-<li><strong>{{ c.subject }}</strong> có {{c.lesson_count }} bài học </li>
+    <li><strong>{{ c.course }}</strong>: {{ c.syllabuses_count }} đề cương, {{ c.curriculums_count }} bài học</li>
 {% endfor %}
 </ul>
-<div style="width:50%;">
-     <canvas id="myChart"></canvas>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    let data = [];
-    let labels = [];
-    {% for s in stats %}
-        data.push({{ c.lesson_count }});
-        labels.push('{{c.subject}}');
-    {% endfor %}
-    window.onload = function() {
-        const ctx = document.getElementById('myChart');
+<h3>Số lượng tiêu chí đánh giá và điểm số của từng đề cương</h3>
+<ul>
+{% for e in evaluation_stats %}
+    <li><strong>{{ e.curriculum }}</strong>: {{ e.evaluations_count }} tiêu chí, Tổng điểm: {{ e.total_score }}</li>
+{% endfor %}
+</ul>
 
-      new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: '# Số lượng',
-            data: data,
-            borderWidth: 1,
-            backgroundColor: ['red', 'green', 'blue', 'gold', 'brown']
-          }]
-        },
-        options: {
-          scales: {
-            y: {
-              beginAtZero: true
-            }
-          }
-        }
-      });
-    }
-</script>
+<h3>Số lượng bình luận theo từng đề cương</h3>
+<ul>
+{% for com in comment_stats %}
+    <li><strong>{{ com.curriculum }}</strong>: {{ com.comments_count }} bình luận</li>
+{% endfor %}
+</ul>
+
+<!--<div style="width:50%;">-->
+<!--    <canvas id="myChart"></canvas>-->
+<!--</div>-->
+
+<!--<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>-->
+<!--<script>-->
+<!--    let data = [];-->
+<!--    let labels = [];-->
+<!--    {% for c in course_stats %}-->
+<!--        data.push({{ c.syllabuses_count }});-->
+<!--        labels.push('{{ c.course }}');-->
+<!--    {% endfor %}-->
+<!--    window.onload = function() {-->
+<!--        const ctx = document.getElementById('myChart').getContext('2d');-->
+
+<!--        new Chart(ctx, {-->
+<!--            type: 'bar',-->
+<!--            data: {-->
+<!--                labels: labels,-->
+<!--                datasets: [{-->
+<!--                    label: '# Số lượng bài học',-->
+<!--                    data: data,-->
+<!--                    borderWidth: 1,-->
+<!--                    backgroundColor: ['red', 'green', 'blue', 'gold', 'brown']-->
+<!--                }]-->
+<!--            },-->
+<!--            options: {-->
+<!--                scales: {-->
+<!--                    y: {-->
+<!--                        beginAtZero: true-->
+<!--                    }-->
+<!--                }-->
+<!--            }-->
+<!--        });-->
+<!--    }-->
+<!--</script>-->
 {% endblock %}
