@@ -117,7 +117,7 @@ class CategoryViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPI
 
 
 class CourseViewSet(viewsets.ViewSet, generics.ListAPIView):
-    queryset = Course.objects.filter(active=True)
+    queryset = Course.objects.all()
     serializer_class = CourseSerializer
     pagination_class = paginators.CoursePaginator
 
@@ -134,9 +134,31 @@ class CourseViewSet(viewsets.ViewSet, generics.ListAPIView):
     @action(methods=['get'], url_path='lessons', detail=True)
     def get_lessons(self, request, pk=None):
         course = self.get_object()
-        lessons = course.lesson_set.filter(active=True)
-        return Response(serializers.LessonSerializer(lessons, many=True).data, status=status.HTTP_200_OK)
 
+        # Lấy danh mục liên quan đến khóa học và kiểm tra trạng thái hoạt động của nó
+        category = course.category
+        if category.active:
+            categories = [category]
+        else:
+            categories = []
+        return Response(serializers.CategorySerializer(categories, many=True).data, status=status.HTTP_200_OK)
+    @action(methods=['get'], url_path='category', detail=False)
+    def get_courses_by_category(self, request):
+        category_id = request.query_params.get('category_id')
+        if not category_id:
+            return Response({"detail": "Category ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            category = Category.objects.get(id=category_id)
+        except Category.DoesNotExist:
+            return Response({"detail": "Category not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        courses = Course.objects.filter(category=category)
+        page = self.paginate_queryset(courses)
+        if page is not None:
+            return self.get_paginated_response(CourseSerializer(page, many=True).data)
+
+        return Response(CourseSerializer(courses, many=True).data)
 
 class CurriculumViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.CreateAPIView, generics.UpdateAPIView):
     queryset = Curriculum.objects.all()

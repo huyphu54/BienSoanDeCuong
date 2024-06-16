@@ -20,7 +20,7 @@ class User(AbstractUser):
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
-
+    active = models.BooleanField(default=True)
     def __str__(self):
         return self.name
 
@@ -36,7 +36,7 @@ class BaseModel(models.Model):
 class Course(BaseModel):
     name = models.CharField(max_length=255)
     credits = models.PositiveIntegerField()
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, default=1) # Added related_name
+    category = models.ForeignKey(Category, related_name='courses', on_delete=models.CASCADE, default=1) # Added related_name
 
     def __str__(self):
         return self.name
