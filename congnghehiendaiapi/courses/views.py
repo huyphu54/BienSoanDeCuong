@@ -1,6 +1,11 @@
+import string
+from random import random
+
+from django.contrib.auth.hashers import make_password
 from django.core.mail import send_mail
 from django.http import FileResponse
 from django.shortcuts import render
+from django.template.defaultfilters import slugify
 from rest_framework import viewsets, permissions, status, parsers, generics,filters
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -10,9 +15,9 @@ from .serializers import UserSerializer, CategorySerializer, CourseSerializer, C
     EvaluationCriterionSerializer, CommentSerializer, CurriculumEvaluation, CurriculumEvaluationSerializer
 from courses import serializers, paginators
 from django.contrib.auth.models import Group
-from .permission import IsSuperuser
+from .permission import IsSuperuser, IsStudent
 
-class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView, generics.RetrieveAPIView, generics.DestroyAPIView):
+class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView, generics.RetrieveAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     parser_classes = [parsers.MultiPartParser]
@@ -21,7 +26,9 @@ class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView
     def get_permissions(self):
         if self.action in ['create', 'register_student', 'register_teacher']:
             return [permissions.AllowAny()]
-        if self.action in [ 'retrieve', 'approve_student', 'approve_teacher','list']:
+        if self.action in ['update_profile']:
+            return [IsStudent()]
+        if self.action in ['retrieve', 'approve_student', 'approve_teacher','list']:
             return [IsSuperuser()]
         return [permissions.IsAuthenticated()]
 
@@ -38,32 +45,17 @@ class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView
     #             fail_silently=False,
     #         )
 
+    #----------------Giảng Viên Đăng Ký-----------------
+
     @action(detail=False, methods=['post'], url_path='register-teacher')
     def register_teacher(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        admin_email = 'huyphu2805@gmail.com'
         user = serializer.save(is_active=False, is_teacher=True)
-        # send_mail(
-        #     'Teacher Registration Request',
-        #     'A new teacher has registered. Please review and approve the account.',
-        #     'admin@example.com',
-        #     ['admin@example.com'],
-        #     fail_silently=False,
-        # )
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    @action(detail=False, methods=['post'], url_path='register-student')
-    def register_student(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save(is_active=False, is_student=True)
-        # send_mail(
-        #     'Student Registration Request',
-        #     'A new student has registered. Please review and approve the account.',
-        #     'admin@example.com',
-        #     ['admin@example.com'],
-        #     fail_silently=False,
-        # )
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['patch'], url_path='approve-teacher')
     def approve_teacher(self, request, pk=None):
         user = self.get_object()
@@ -75,34 +67,71 @@ class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView
         group = Group.objects.get(name=group_name)
         user.groups.add(group)
         user.save()
-        # send_mail(
-        #     'Account Approved',
-        #     'Your account has been approved. Please update your password and upload an avatar.',
-        #     'admin@example.com',
-        #     [user.email],
-        #     fail_silently=False,
-        # )
+        send_mail(
+            'Account Approved',
+            'Now you can use this account like an admin',
+            'huyphu2805@gmail.com',
+            [user.email],
+            fail_silently=False,
+        )
         return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
+
+
+     #----------------Sinh Viên Đăng Ký-----------------
+    @action(detail=False, methods=['post'], url_path='register-student')
+    def register_student(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save(is_active=False, is_student=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
     @action(detail=True, methods=['patch'], url_path='approve-student')
     def approve_student(self, request, pk=None):
         user = self.get_object()
         if not user.is_student or user.is_active:
             raise PermissionDenied("Invalid student account.")
+
+        # Tạo username từ email
+        username = user.email.split('@')[0]
+
+        # Kiểm tra xem username đã tồn tại chưa
+        if User.objects.filter(username=username).exists():
+            # Nếu đã tồn tại, thêm một số ngẫu nhiên vào cuối
+            username += ''.join(random.choices(string.digits, k=4))
+        #Set mật khẩu mặc định là 123456
+        user.set_password('123456')
+
+        user.username = slugify(username)
         user.is_active = True
         user.is_staff = True
-        group_name = 'Student'  # Replace with your group name
+        group_name = 'Student'
         group = Group.objects.get(name=group_name)
         user.groups.add(group)
         user.save()
-        # send_mail(
-        #     'Account Approved',
-        #     'Your account has been approved. Please update your password and upload an avatar.',
-        #     'admin@example.com',
-        #     [user.email],
-        #     fail_silently=False,
-        # )
+
+        send_mail(
+            'Account Approved',
+            'Your account has been approved. Please update your password and upload an avatar. '
+            'username: your email name before @, password: 123456',
+            'huyphu2805@gmail.com',
+            [user.email],
+            fail_silently=False,
+        )
+
         return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['patch'], url_path='update-profile-student')
+    def update_profile_student(self, request, pk=None):
+        student = self.get_object()
+
+        password = request.data.get('password')
+        avatar = request.data.get('avatar')
+
+        if password:
+            student.password = make_password(password)
+        if avatar:
+            student.avatar = avatar
+        student.save()
+        return Response({'message': 'Profile updated successfully.'}, status=status.HTTP_200_OK)
 
 class CategoryViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIView):
     queryset = Category.objects.all()
@@ -134,8 +163,6 @@ class CourseViewSet(viewsets.ViewSet, generics.ListAPIView):
     @action(methods=['get'], url_path='lessons', detail=True)
     def get_lessons(self, request, pk=None):
         course = self.get_object()
-
-        # Lấy danh mục liên quan đến khóa học và kiểm tra trạng thái hoạt động của nó
         category = course.category
         if category.active:
             categories = [category]
@@ -175,7 +202,7 @@ class SyllabusViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     queryset = Syllabus.objects.all()
     serializer_class = SyllabusSerializer
     filter_backends = [filters.SearchFilter]
-    search_fields = ['title', 'curriculums__course__name', 'curriculums__course__credits', 'curriculums__user__username', 'curriculums__start_year', 'curriculums__end_year']
+    search_fields = ['title', 'curriculum__course__name', 'curriculum__course__credits', 'curriculum__user__username', 'curriculum__start_year', 'curriculum__end_year']
 
     def get_queryset(self):
         queryset = Syllabus.objects.all()
@@ -189,15 +216,15 @@ class SyllabusViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
         if title:
             queryset = queryset.filter(title__icontains=title)
         if course_name:
-            queryset = queryset.filter(curriculums__course__name__icontains=course_name)
+            queryset = queryset.filter(curriculum__course__name__icontains=course_name)
         if course_credits:
-            queryset = queryset.filter(curriculums__course__credits=course_credits)
+            queryset = queryset.filter(curriculum__course__credits=course_credits)
         if user_username:
-            queryset = queryset.filter(curriculums__user__username__icontains=user_username)
+            queryset = queryset.filter(curriculum__user__username__icontains=user_username)
         if start_year:
-            queryset = queryset.filter(curriculums__start_year=start_year)
+            queryset = queryset.filter(curriculum__start_year=start_year)
         if end_year:
-            queryset = queryset.filter(curriculums__end_year=end_year)
+            queryset = queryset.filter(curriculum__end_year=end_year)
 
         return queryset
     def get_permissions(self):

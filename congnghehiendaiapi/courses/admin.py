@@ -20,7 +20,7 @@ class CurriculumAdmin(admin.ModelAdmin):
 class CurriculumEvaluationAdmin(admin.ModelAdmin):
     list_display = ['curriculum', 'evaluation_criterion', 'score', 'created_at', 'updated_at', 'active']
     search_fields = ['curriculum__title', 'evaluation_criterion__name']
-    list_filter = ['curriculum','score']
+    list_filter = ['curriculum','score','evaluation_criterion__name']
 class EvaluationCriterionAdmin(admin.ModelAdmin):
     list_display = ['name', 'course', 'weight', 'max_score', 'created_at', 'updated_at', 'active']
     list_filter = ['course','name']
@@ -34,7 +34,7 @@ class CourseAdmin(admin.ModelAdmin):
 class SyllabusAdmin(admin.ModelAdmin):
     list_display = ['title']
     search_fields = ['title', 'curriculums__title']
-    list_filter = ['title']
+    list_filter = ['title','curriculum__course__name', 'curriculum__course__credits','curriculum__user__username','curriculum__start_year','curriculum__end_year']
 class CommentAdmin(admin.ModelAdmin):
     list_display = ['user', 'curriculum', 'created_at', 'updated_at', 'active']
     list_filter = ['user', 'curriculum']

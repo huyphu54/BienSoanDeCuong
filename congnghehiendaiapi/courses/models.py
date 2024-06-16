@@ -6,6 +6,7 @@ from cloudinary.models import CloudinaryField
 from ckeditor.fields import RichTextField
 class User(AbstractUser):
     id = models.AutoField(primary_key=True)  # Trường ID tự động tăng, làm khóa chính
+    username = models.CharField(max_length=150, unique=True, blank=True, null=True)
     first_name = models.CharField(max_length=30)  # Tên (first name)
     last_name = models.CharField(max_length=30)  # Họ (last name)
     birth_year = models.PositiveIntegerField(null=True, blank=True)
