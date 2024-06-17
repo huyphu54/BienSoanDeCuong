@@ -43,11 +43,21 @@ class UserViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIVi
 
     @action(detail=False, methods=['post'], url_path='register-teacher')
     def register_teacher(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        # Kiểm tra xem username và password đã được cung cấp chưa
+        if not username :
+            return Response({'error': 'Username is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not password:
+            return Response({'error': 'Password is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Thêm username và password vào dữ liệu để tạo người dùng
+        request.data['username'] = username
+        request.data['password'] = make_password(password)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        admin_email = 'huyphu2805@gmail.com'
         user = serializer.save(is_active=False, is_teacher=True)
-
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['patch'], url_path='approve-teacher')
@@ -192,11 +202,12 @@ class CurriculumViewSet(viewsets.ViewSet, generics.ListAPIView, generics.Retriev
             return [IsSuperuser()]
         return [permissions.IsAuthenticated()]
 
-class SyllabusViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.CreateAPIView, generics.UpdateAPIView):
+class SyllabusViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.CreateAPIView):
     queryset = Syllabus.objects.all()
     serializer_class = SyllabusSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['title', 'curriculum__course__name', 'curriculum__course__credits', 'curriculum__user__username', 'curriculum__start_year', 'curriculum__end_year']
+
 
     def get_queryset(self):
         queryset = Syllabus.objects.all()
@@ -227,6 +238,12 @@ class SyllabusViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
         elif self.action in ['create', 'retrieve', 'update']:
             return [IsSuperuser()]
         return [permissions.IsAuthenticated()]
+
+    @action(detail=True, methods=['patch'], url_path='update', permission_classes=[permissions.AllowAny])
+    def update_syllabus(self, request, pk=None):
+        syllabus = self.get_object()
+        syllabus.save()
+        return Response({'message': 'Profile updated successfully.'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'], url_path='download', permission_classes=[permissions.AllowAny])
     def download_syllabus(self, request, pk=None):
@@ -295,15 +312,3 @@ class CommentViewSet(viewsets.ViewSet, generics.ListAPIView, generics.DestroyAPI
         comment = Comment.objects.create(user=request.user, curriculum=curriculum, content=content)
         serializer = CommentSerializer(comment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    # @action(methods=['get'], url_path='comments', detail=True)
-    # def get_comments(self, request, pk):
-    #     comments = self.get_object().comment_set.select_related('user').all()
-    #
-    #     paginator = paginators.CommentPaginator()
-    #     page = paginator.paginate_queryset(comments, request)
-    #     if page is not None:
-    #         serializer = serializers.CommentSerializer(page, many=True)
-    #         return paginator.get_paginated_response(serializer.data)
-    #
-    #     return Response(serializers.CommentSerializer(comments, many=True).data,
-    #                     status=status.HTTP_200_OK)

@@ -16,7 +16,7 @@ class User(AbstractUser):
     degree = models.CharField(max_length=50, null=True, blank=True)  # Chỉ dành cho giáo viên
     email = models.EmailField(blank=True, null=True)
     def __str__(self):
-        return self.username
+        return self.username or ''
 
 
 class Category(models.Model):
