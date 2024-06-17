@@ -4,7 +4,7 @@ from random import random
 from django.contrib.auth.hashers import make_password
 from django.core.mail import send_mail
 from django.http import FileResponse
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.template.defaultfilters import slugify
 from rest_framework import viewsets, permissions, status, parsers, generics,filters
 from rest_framework.exceptions import PermissionDenied
@@ -17,14 +17,12 @@ from courses import serializers, paginators
 from django.contrib.auth.models import Group
 from .permission import IsSuperuser, IsStudent
 
-class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView, generics.RetrieveAPIView):
+class UserViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     parser_classes = [parsers.MultiPartParser]
-
-
     def get_permissions(self):
-        if self.action in ['create', 'register_student', 'register_teacher']:
+        if self.action in ['register_student', 'register_teacher']:
             return [permissions.AllowAny()]
         if self.action in ['update_profile']:
             return [IsStudent()]
@@ -32,18 +30,14 @@ class UserViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.ListAPIView
             return [IsSuperuser()]
         return [permissions.IsAuthenticated()]
 
-    # def perform_create(self, serializer):
-    #     user = serializer.save()
-    #     if user.is_teacher:
-    #         user.is_active = False
-    #         user.save()
-    #         send_mail(
-    #             'Account Registration',
-    #             'Your account has been registered. Please upload an avatar and provide additional information.',
-    #             'admin@example.com',
-    #             [user.email],
-    #             fail_silently=False,
-    #         )
+    @action(methods=['get', 'patch'], url_path='current-user', detail=False)
+    def current_user(self, request):
+        user = request.user
+        if request.method.__eq__('PATCH'):
+            for k, v in request.data.items():
+                setattr(user, k, v)
+            user.save()
+        return Response(serializers.UserSerializer(user).data)
 
     #----------------Giảng Viên Đăng Ký-----------------
 
@@ -259,6 +253,7 @@ class CurriculumEvaluationViewSet(viewsets.ViewSet, generics.ListCreateAPIView, 
     queryset = CurriculumEvaluation.objects.all()
     serializer_class = CurriculumEvaluationSerializer
 
+
     def get_permissions(self):
         if self.action in ['list']:
             return [permissions.AllowAny()]
@@ -266,9 +261,49 @@ class CurriculumEvaluationViewSet(viewsets.ViewSet, generics.ListCreateAPIView, 
             return [IsSuperuser()]
         return [permissions.IsAuthenticated()]
 
-class CommentViewSet(viewsets.ViewSet, generics.ListAPIView, generics.DestroyAPIView, generics.CreateAPIView):
+class CommentViewSet(viewsets.ViewSet, generics.ListAPIView, generics.DestroyAPIView):
     queryset = Comment.objects.all()
     serializer_class = CommentSerializer
 
+    def get_permissions(self):
+        if self.action in ['list']:
+            return [permissions.AllowAny()]
+        elif self.action == ['add_comment','destroy']:
+            return [permissions.IsAuthenticated]
+        return [permissions.IsAuthenticated()]
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='by-curriculum/(?P<curriculum_id>[^/.]+)')
+    def get_comments_by_curriculum(self, request, curriculum_id=None):
+        if not curriculum_id:
+            return Response({'error': 'Curriculum ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        comments = Comment.objects.filter(curriculum_id=curriculum_id)
+        serializer = self.get_serializer(comments, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+    @action(detail=True, methods=['post'], url_path='add-comment')
+    def add_comment(self, request, pk=None):
+        curriculum = get_object_or_404(Curriculum, pk=pk)
+        content = request.data.get('content')
+        if not content:
+            return Response({'error': 'Content is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        comment = Comment.objects.create(user=request.user, curriculum=curriculum, content=content)
+        serializer = CommentSerializer(comment)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    # @action(methods=['get'], url_path='comments', detail=True)
+    # def get_comments(self, request, pk):
+    #     comments = self.get_object().comment_set.select_related('user').all()
+    #
+    #     paginator = paginators.CommentPaginator()
+    #     page = paginator.paginate_queryset(comments, request)
+    #     if page is not None:
+    #         serializer = serializers.CommentSerializer(page, many=True)
+    #         return paginator.get_paginated_response(serializer.data)
+    #
+    #     return Response(serializers.CommentSerializer(comments, many=True).data,
+    #                     status=status.HTTP_200_OK)
