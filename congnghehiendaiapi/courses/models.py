@@ -53,11 +53,11 @@ class Curriculum(BaseModel):
     class Meta:
         permissions = [
             ("can_add_curriculum", "Can add curriculum"),
-            ("can_view_curriculum", "Can view curriculum"),
+            ("can_view_curriculum", "Can view cusrriculum"),
         ]
 
     def __str__(self):
-        return f"{self.course.name} ({self.start_year}-{self.end_year})"
+        return f"{self.title} ({self.start_year}-{self.end_year})"
 
 class Syllabus(models.Model):
     title = models.CharField(max_length=255)
@@ -68,25 +68,31 @@ class Syllabus(models.Model):
         return self.title
 
 class EvaluationCriterion(BaseModel):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, null=True)
+    curriculum = models.ForeignKey(Curriculum, on_delete=models.CASCADE, null=True)
     name = models.CharField(max_length=255)
     weight = models.DecimalField(max_digits=5, decimal_places=2)
     max_score = models.DecimalField(max_digits=5, decimal_places=2)
 
+    # class Meta:
+    #     unique_together = ('curriculum_title', 'name')
+
     def __str__(self):
-        return f"{self.name} ({self.course}) "
+        return f"{self.name} ({self.curriculum}) "
 class CurriculumEvaluation(BaseModel):
-    curriculum = models.ForeignKey(Curriculum, on_delete=models.CASCADE,null=True)
+    syllabus = models.ForeignKey(Syllabus, on_delete=models.CASCADE, null=True)
     evaluation_criterion = models.ForeignKey(EvaluationCriterion, on_delete=models.CASCADE)
     score = models.DecimalField(max_digits=5, decimal_places=2)
 
     def __str__(self):
-        return f'{self.curriculum.title} - {self.evaluation_criterion.name}'
+        return f'{self.syllabus.title} - {self.evaluation_criterion.name}'
+    class Meta:
+        unique_together = ['syllabus', 'evaluation_criterion']
+
 
 class Comment(BaseModel):
-    curriculum = models.ForeignKey(Curriculum, on_delete=models.CASCADE)
+    syllabus = models.ForeignKey(Syllabus, on_delete=models.CASCADE, null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     content = RichTextField()
 
     def __str__(self):
-        return f'{self.user.username} - {self.curriculum.title}'
+        return f'{self.user.username} '

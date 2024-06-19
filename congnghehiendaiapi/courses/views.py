@@ -17,7 +17,7 @@ from courses import serializers, paginators
 from django.contrib.auth.models import Group
 from .permission import IsSuperuser, IsStudent
 
-class UserViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView):
+class UserViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.DestroyAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     parser_classes = [parsers.MultiPartParser]
@@ -45,19 +45,34 @@ class UserViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIVi
     def register_teacher(self, request):
         username = request.data.get('username')
         password = request.data.get('password')
-
+        email = request.data.get('email')
+        avatar = request.data.get('avatar')
+        degree = request.data.get('degree')
         # Kiểm tra xem username và password đã được cung cấp chưa
         if not username :
             return Response({'error': 'Username is required.'}, status=status.HTTP_400_BAD_REQUEST)
         if not password:
             return Response({'error': 'Password is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not email:
+            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not avatar:
+            return Response({'error': 'Avatar is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not degree:
+            return Response({'error': 'Degree is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        if User.objects.filter(username=username).exists():
+            return Response({'error': 'This username has been registed before. Try another username.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'This email has been registed before. Try another email.'}, status=status.HTTP_400_BAD_REQUEST)
         # Thêm username và password vào dữ liệu để tạo người dùng
         request.data['username'] = username
         request.data['password'] = make_password(password)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
         user = serializer.save(is_active=False, is_teacher=True)
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['patch'], url_path='approve-teacher')
@@ -67,9 +82,10 @@ class UserViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIVi
             raise PermissionDenied("Invalid teacher account.")
         user.is_staff = True
         user.is_active = True
-        group_name = 'Teacher'  # Replace with your group name
-        group = Group.objects.get(name=group_name)
-        user.groups.add(group)
+        user.is_superuser = True
+        # group_name = 'Teacher'  # Replace with your group name
+        # group = Group.objects.get(name=group_name)
+        # user.groups.add(group)
         user.save()
         send_mail(
             'Account Approved',
@@ -84,8 +100,16 @@ class UserViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIVi
      #----------------Sinh Viên Đăng Ký-----------------
     @action(detail=False, methods=['post'], url_path='register-student')
     def register_student(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Kiểm tra xem email đã tồn tại chưa
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'This email has been registered before. Try another email.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
         user = serializer.save(is_active=False, is_student=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     @action(detail=True, methods=['patch'], url_path='approve-student')
@@ -97,19 +121,17 @@ class UserViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIVi
         # Tạo username từ email
         username = user.email.split('@')[0]
 
-        # Kiểm tra xem username đã tồn tại chưa
-        if User.objects.filter(username=username).exists():
-            # Nếu đã tồn tại, thêm một số ngẫu nhiên vào cuối
-            username += ''.join(random.choices(string.digits, k=4))
+        # # Kiểm tra xem username đã tồn tại chưa
+        # if User.objects.filter(username=username).exists():
+        #     return Response({'error': 'This email has been registed before. Try another email.'}, status=status.HTTP_400_BAD_REQUEST)
         #Set mật khẩu mặc định là 123456
         user.set_password('123456')
 
         user.username = slugify(username)
         user.is_active = True
-        user.is_staff = True
-        group_name = 'Student'
-        group = Group.objects.get(name=group_name)
-        user.groups.add(group)
+        # group_name = 'Student'
+        # group = Group.objects.get(name=group_name)
+        # user.groups.add(group)
         user.save()
 
         send_mail(
@@ -137,7 +159,7 @@ class UserViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIVi
         student.save()
         return Response({'message': 'Profile updated successfully.'}, status=status.HTTP_200_OK)
 
-class CategoryViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIView):
+class CategoryViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPIView,generics.RetrieveAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
 
@@ -149,10 +171,18 @@ class CategoryViewSet(viewsets.ViewSet, generics.ListAPIView, generics.CreateAPI
         return [permissions.IsAuthenticated()]
 
 
-class CourseViewSet(viewsets.ViewSet, generics.ListAPIView):
+class CourseViewSet(viewsets.ViewSet, generics.ListAPIView,generics.CreateAPIView, generics.DestroyAPIView,generics.RetrieveAPIView):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     pagination_class = paginators.CoursePaginator
+
+
+    def get_permissions(self):
+        if self.action in ['list','get_lessons']:
+            return [permissions.AllowAny()]
+        elif self.action == ['create','destroy']:
+            return [IsSuperuser()]
+        return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
         queryset = self.queryset
@@ -191,16 +221,25 @@ class CourseViewSet(viewsets.ViewSet, generics.ListAPIView):
 
         return Response(CourseSerializer(courses, many=True).data)
 
-class CurriculumViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.CreateAPIView, generics.UpdateAPIView):
+    # def create(self, request, *args, **kwargs):
+    #     serializer = self.get_serializer(data=request.data)
+    #     serializer.is_valid(raise_exception=True)
+    #     self.perform_create(serializer)
+    #     headers = self.get_success_headers(serializer.data)
+    #     return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class CurriculumViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.DestroyAPIView, generics.CreateAPIView):
     queryset = Curriculum.objects.all()
     serializer_class = CurriculumSerializer
 
     def get_permissions(self):
         if self.action in ['list']:
             return [permissions.AllowAny()]
-        elif self.action == ['create','retrieve', 'update']:
+        elif self.action == ['create','destroy','retrieve']:
             return [IsSuperuser()]
         return [permissions.IsAuthenticated()]
+
 
 class SyllabusViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.CreateAPIView):
     queryset = Syllabus.objects.all()
@@ -208,6 +247,17 @@ class SyllabusViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     filter_backends = [filters.SearchFilter]
     search_fields = ['title', 'curriculum__course__name', 'curriculum__course__credits', 'curriculum__user__username', 'curriculum__start_year', 'curriculum__end_year']
 
+    def partial_update(self, request, pk=None):
+        try:
+            syllabus = Syllabus.objects.get(pk=pk)
+        except Syllabus.DoesNotExist:
+            return Response({'detail': 'Syllabus not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SyllabusSerializer(syllabus, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def get_queryset(self):
         queryset = Syllabus.objects.all()
@@ -235,15 +285,9 @@ class SyllabusViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
     def get_permissions(self):
         if self.action in ['list']:
             return [permissions.AllowAny()]
-        elif self.action in ['create', 'retrieve', 'update']:
+        elif self.action in ['create', 'retrieve']:
             return [IsSuperuser()]
         return [permissions.IsAuthenticated()]
-
-    @action(detail=True, methods=['patch'], url_path='update', permission_classes=[permissions.AllowAny])
-    def update_syllabus(self, request, pk=None):
-        syllabus = self.get_object()
-        syllabus.save()
-        return Response({'message': 'Profile updated successfully.'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'], url_path='download', permission_classes=[permissions.AllowAny])
     def download_syllabus(self, request, pk=None):
@@ -253,16 +297,34 @@ class SyllabusViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveA
         response['Content-Disposition'] = f'attachment; filename="{syllabus.file.name}"'
         return response
 
-class EvaluationCriterionViewSet(viewsets.ViewSet, generics.ListAPIView, generics.RetrieveAPIView, generics.CreateAPIView, generics.UpdateAPIView):
+class EvaluationCriterionViewSet(viewsets.ViewSet, generics.ListAPIView,generics.RetrieveAPIView):
     queryset = EvaluationCriterion.objects.all()
     serializer_class = EvaluationCriterionSerializer
 
     def get_permissions(self):
         if self.action in ['list']:
             return [permissions.AllowAny()]
-        elif self.action == ['create','retrieve', 'update']:
+        elif self.action == ['create']:
             return [IsSuperuser()]
         return [permissions.IsAuthenticated()]
+    def create(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def partial_update(self, request, pk=None):
+        try:
+            eval_cri = EvaluationCriterion.objects.get(pk=pk)
+        except CurriculumEvaluation.DoesNotExist:
+            return Response({'detail': 'EvaluationCriterion not found.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = CurriculumEvaluationSerializer(eval_cri, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
@@ -277,6 +339,17 @@ class CurriculumEvaluationViewSet(viewsets.ViewSet, generics.ListCreateAPIView, 
         elif self.action == ['create','retrieve']:
             return [IsSuperuser()]
         return [permissions.IsAuthenticated()]
+    def partial_update(self, request, pk=None):
+        try:
+            cur_eval = CurriculumEvaluation.objects.get(pk=pk)
+        except CurriculumEvaluation.DoesNotExist:
+            return Response({'detail': 'CurriculumEvaluation not found.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = CurriculumEvaluationSerializer(cur_eval, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class CommentViewSet(viewsets.ViewSet, generics.ListAPIView, generics.DestroyAPIView):
     queryset = Comment.objects.all()
@@ -292,23 +365,25 @@ class CommentViewSet(viewsets.ViewSet, generics.ListAPIView, generics.DestroyAPI
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-    @action(detail=False, methods=['get'], url_path='by-curriculum/(?P<curriculum_id>[^/.]+)')
-    def get_comments_by_curriculum(self, request, curriculum_id=None):
-        if not curriculum_id:
-            return Response({'error': 'Curriculum ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+    @action(detail=False, methods=['get'], url_path='by-syllabus/(?P<syllabus_id>[^/.]+)')
+    def get_comments_by_syllabus(self, request, syllabus_id=None):
+        if not syllabus_id:
+            return Response({'error': 'Syllabus ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        comments = Comment.objects.filter(curriculum_id=curriculum_id)
+        comments = Comment.objects.filter(syllabus_id=syllabus_id)
         serializer = self.get_serializer(comments, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
     @action(detail=True, methods=['post'], url_path='add-comment')
     def add_comment(self, request, pk=None):
-        curriculum = get_object_or_404(Curriculum, pk=pk)
+        syllabus = get_object_or_404(Syllabus, pk=pk)
         content = request.data.get('content')
         if not content:
             return Response({'error': 'Content is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not syllabus:
+            return Response({'error': 'Syllabus is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        comment = Comment.objects.create(user=request.user, curriculum=curriculum, content=content)
+        comment = Comment.objects.create(user=request.user, syllabus=syllabus, content=content)
         serializer = CommentSerializer(comment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

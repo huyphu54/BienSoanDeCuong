@@ -18,13 +18,13 @@ class CurriculumAdmin(admin.ModelAdmin):
     search_fields = ['title', 'course__name', 'user__username', 'user__last_name']
     list_filter = ['title','start_year', 'end_year', 'course']
 class CurriculumEvaluationAdmin(admin.ModelAdmin):
-    list_display = ['curriculum', 'evaluation_criterion', 'score', 'created_at', 'updated_at', 'active']
-    search_fields = ['curriculum__title', 'evaluation_criterion__name']
-    list_filter = ['curriculum','score','evaluation_criterion__name']
+    list_display = ['syllabus', 'evaluation_criterion', 'score', 'created_at', 'updated_at', 'active']
+    search_fields = ['syllabus__title', 'evaluation_criterion__name']
+    list_filter = ['syllabus','score','evaluation_criterion__name']
 class EvaluationCriterionAdmin(admin.ModelAdmin):
-    list_display = ['name', 'course', 'weight', 'max_score', 'created_at', 'updated_at', 'active']
-    list_filter = ['course','name']
-    search_fields = ['name','course']
+    list_display = ['name', 'curriculum', 'weight', 'max_score', 'created_at', 'updated_at', 'active']
+    list_filter = ['curriculum','name']
+    search_fields = ['name','curriculum__course__name']
 
 class CourseAdmin(admin.ModelAdmin):
     list_display = ['name', 'credits', 'category', 'created_at', 'updated_at', 'active']
@@ -36,9 +36,9 @@ class SyllabusAdmin(admin.ModelAdmin):
     search_fields = ['title', 'curriculums__title']
     list_filter = ['title','curriculum__course__name', 'curriculum__course__credits','curriculum__user__username','curriculum__start_year','curriculum__end_year']
 class CommentAdmin(admin.ModelAdmin):
-    list_display = ['user', 'curriculum', 'created_at', 'updated_at', 'active']
-    list_filter = ['user', 'curriculum']
-    search_fields = ['content', 'user__username', 'curriculum__title']
+    list_display = ['user', 'syllabus', 'created_at', 'updated_at', 'active']
+    list_filter = ['user', 'syllabus']
+    search_fields = ['content', 'user__username', 'syllabus__title']
 
 class CustomUserChangeForm(UserChangeForm):
     class Meta:

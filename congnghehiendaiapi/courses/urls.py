@@ -12,7 +12,7 @@ router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'courses', CourseViewSet, basename='course')
 router.register(r'curriculums', CurriculumViewSet, basename='curriculum')
 router.register(r'syllabuses', SyllabusViewSet, basename='syllabus')
-router.register(r'evaluationcriteria', EvaluationCriterionViewSet, basename='evaluationcriterion')
+router.register(r'evaluation-criteria', EvaluationCriterionViewSet, basename='evaluation-criterion')
 router.register(r'curriculum-evaluations', CurriculumEvaluationViewSet,  basename='curriculum-evaluations')
 router.register(r'comments', CommentViewSet, basename='comment')
 
